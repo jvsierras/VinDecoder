@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decodificador de VIN - NHTSA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        input, button {
+            padding: 10px;
+            width: 100%;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4fc;
+            border-radius: 4px;
+            display: none;
+            white-space: pre-line;
+            position: relative;
+        }
+        #copyBtn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 3px 8px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        #copyBtn:hover {
+            background-color: #1a252f;
+        }
+        .error {
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Consulta de VIN</h1>
+        <p>Ingresa un VIN para obtener información del vehículo (ejemplo: 1FMHK8B85CGA45120)</p>
+        
+        <input type="text" id="vinInput" placeholder="Ejemplo: 1FMHK8B85CGA45120">
+        <button onclick="decodeVIN()">Consultar</button>
+        
+        <div id="result">
+            <button id="copyBtn" onclick="copyResult()">Copiar</button>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        function capitalizeFirstLetter(string) {
+            return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+        }
+
+        function formatSeriesTrim(series, trim) {
+            let result = [];
+            if (series && series !== "N/A") result.push(`Series: ${series}`);
+            if (trim && trim !== "N/A") result.push(`Trim: ${trim}`);
+            return result.join('\n');
+        }
+
+        function decodeVIN() {
+            const vin = document.getElementById("vinInput").value.trim();
+            const resultDiv = document.getElementById("result");
+            const resultContent = document.getElementById("resultContent");
+            
+            if (!vin) {
+                alert("Por favor ingresa un VIN válido.");
+                return;
+            }
+
+            resultDiv.style.display = "none";
+            
+            fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${vin}?format=json`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.Results && data.Results[0].ErrorCode === "0") {
+                        const vehicle = data.Results[0];
+                        
+                        const make = vehicle.Make ? capitalizeFirstLetter(vehicle.Make) : "N/A";
+                        const model = vehicle.Model ? capitalizeFirstLetter(vehicle.Model) : "N/A";
+                        const series = vehicle.Series || "N/A";
+                        const trim = vehicle.Trim || "N/A";
+                        const cylinders = vehicle.EngineCylinders || "N/A";
+                        
+                        const seriesTrimInfo = formatSeriesTrim(series, trim);
+                        
+                        const resultText = `
+${vehicle.ModelYear || "N/A"} ${make} ${model}
+VIN: ${vin}
+${seriesTrimInfo}
+Style / Body: ${vehicle.BodyClass || "N/A"} ${vehicle.Doors ? vehicle.Doors + "D" : ""}
+Engine: ${vehicle.DisplacementL || "N/A"} ${vehicle.EngineConfiguration || ""} ${cylinders} ${vehicle.FuelTypePrimary || ""}
+Gross Vehicle Weight Rating (GVWR): ${vehicle.GVWR || "N/A"}
+Tipo de tracción (Drive Type): ${vehicle.DriveType || "N/A"}
+Country of Assembly: ${vehicle.PlantCountry || "N/A"}
+                        `.trim();
+
+                        resultContent.textContent = resultText;
+                        resultDiv.style.display = "block";
+                    } else {
+                        alert("VIN no válido o error en la API.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("Ocurrió un error al consultar el VIN.");
+                });
+        }
+
+        function copyResult() {
+            const resultContent = document.getElementById("resultContent");
+            const resultText = resultContent.textContent;
+            
+            navigator.clipboard.writeText(resultText)
+                .then(() => {
+                    const copyBtn = document.getElementById("copyBtn");
+                    copyBtn.textContent = "¡Copiado!";
+                    setTimeout(() => {
+                        copyBtn.textContent = "Copiar";
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error("Error al copiar: ", err);
+                    alert("No se pudo copiar el texto");
+                });
+        }
+    </script>
+</body>
+</html>
